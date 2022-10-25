@@ -63,29 +63,47 @@ mad_train_data <-
   select(Type, HyfeID) %>% 
   rename(StudyID = HyfeID)
 
+mad_train_data$Type %<>% tolower()
+mad_train_data$StudyID %<>% str_remove_all("-")
+
 mad_test_data <- 
   mad_data %>% 
   filter(Type=="Test") %>% 
   select(Type, HyfeID) %>% 
   rename(StudyID = HyfeID)
 
+mad_test_data$Type %<>% tolower()
+mad_test_data$StudyID %<>% str_remove_all("-")
+
 tanz_train_data <- 
   tanz_data %>% 
   filter(Type=="Train") %>% 
   select(Type, StudyID)
+
+tanz_train_data$Type %<>% tolower()
+tanz_train_data$StudyID %<>% str_remove_all("-")
 
 tanz_test_data <- 
   tanz_data %>% 
   filter(Type=="Test") %>% 
   select(Type, StudyID)
 
+tanz_test_data$Type %<>% tolower()
+tanz_test_data$StudyID %<>% str_remove_all("-")
+
 r2d2_train_data %<>% 
   select(Type, StudyID)
+
+r2d2_train_data$Type %<>% tolower()
+r2d2_train_data$StudyID %<>% str_remove_all("-")
 
 r2d2_test_data %<>% 
   select(Type, StudyID)
 
-# Verify studyIDs
+r2d2_test_data$Type %<>% tolower()
+r2d2_test_data$StudyID %<>% str_remove_all("-")
+
+# Verify studyIDs correspond to cohorts in the study
 id_map$StudyID %>% 
   {sub("R2D2.*", "R2D2", ., perl = T)} %>% 
   {sub("RPTanz.*", "RPTanz", ., perl = T)} %>% 
@@ -95,10 +113,12 @@ id_map$StudyID %>%
 # Check if studyID in id_map is correctly labeled with "train" or "test" based on classification from original data
 id_map$check <- rep("", times = nrow(id_map))
 
-all_original_data <- bind_rows()
+all_original_data <- bind_rows(mad_train_data, mad_test_data, tanz_train_data, tanz_test_data, r2d2_train_data, r2d2_test_data)
 
 for (i in 1:length(id_map$StudyID)) {
-  if (id_map$StudyID==) {
-    
+  if (id_map$StudyID[i] %in% all_original_data$StudyID & id_map$type[i]==all_original_data$Type[which(id_map$StudyID[i]==all_original_data$StudyID)]) {
+    id_map$check = TRUE
   }
 }
+
+

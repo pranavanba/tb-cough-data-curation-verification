@@ -246,3 +246,10 @@ for (i in 1:nrow(mismatch)) {
 
 mismatch %<>% select(-`original participant`)
 
+# Check if only training cough files hae been included in the curated metadata
+all_original_solicited_metadata <- 
+  bind_rows(mad_solicited_metadata, tanz_solicited_metadata) %>% 
+  rename("X" = "...1") %>% 
+  select(colnames(r2d2_solicited_metadata)) %>% 
+  bind_rows(r2d2_solicited_metadata)
+

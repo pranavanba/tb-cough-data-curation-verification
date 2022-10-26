@@ -32,20 +32,20 @@ r2d2.long.meta.original.id <- "syn41831765" # csv file
 # Get data ----------------------------------------------------------------
 id_map <- read.csv(synGet(participant.id.mapping.id)$path)
 
-clinical_curated_data <- read.csv(synGet(clinical.curated.id)$path)
+clinical_curated_data <- as_tibble(read.csv(synGet(clinical.curated.id)$path))
 solicited_curated_metadata <- read.csv(synGet(solicited.meta.curated.id)$path)
 # solicited_data <- read.csv(synGet(solicited.raw.curated.id)$path)
 long_curated_metadata <- read.csv(synGet(long.meta.curated.id)$path)
 # long1_data <- read.csv(synGet(long1.raw.curated.id)$path)
 # long2_data <- read.csv(synGet(long2.raw.curated.id)$path)
 
-mad_data <- read_excel(synGet(mad.raw.original.id)$path)
-mad_solicited_metadata <- read_excel(synGet(mad.solicited.meta.original.id)$path)
-mad_long_metadata <- read_excel(synGet(mad.long.meta.original.id)$path)
+mad_data <- read_excel(synGet(mad.raw.original.id)$path, trim_ws = T)
+mad_solicited_metadata <- read_excel(synGet(mad.solicited.meta.original.id)$path, trim_ws = T)
+mad_long_metadata <- read_excel(synGet(mad.long.meta.original.id)$path, trim_ws = T)
 
-tanz_data <- read_excel(synGet(tanz.raw.original.id)$path)
-tanz_solicited_metadata <- read_excel(synGet(tanz.solicited.meta.original.id)$path)
-tanz_long_metadata <- read_excel(synGet(tanz.long.meta.original.id)$path)
+tanz_data <- read_excel(synGet(tanz.raw.original.id)$path, trim_ws = T)
+tanz_solicited_metadata <- read_excel(synGet(tanz.solicited.meta.original.id)$path, trim_ws = T)
+tanz_long_metadata <- read_excel(synGet(tanz.long.meta.original.id)$path, trim_ws = T)
 
 r2d2_data <- bind_rows(read.csv(synGet(r2d2.test.raw.original.id)$path), read.csv(synGet(r2d2.train.raw.original.id)$path))
 r2d2_solicited_metadata <- read.csv(synGet(r2d2.solicited.meta.original.id)$path)
@@ -165,12 +165,18 @@ all_original_data_check <-
   select(Type, StudyID, Sex, Age, Height, Weight, Durationofcough, PriorTB, 
          PriorTBtypePulmonary, PriorTBtypeExtrapulmonary, PriorTBtypeUnknown, 
          Hemoptysis, Heartrate, Temperature, Weightloss, Smokeinlastweek, 
-         Fever, Nightsweat, Microbiologicreferencestandard)
+         Fever, Nightsweat, Microbiologicreferencestandard) %>% 
+  mutate(Type = tolower(Type)) %>% 
+  mutate(StudyID = str_remove_all(StudyID, "-")) %>% 
+  mutate(participant = rep("", nrow(.))) %>% 
+  mutate(Microbiologicreferencestandard = str_remove_all(Microbiologicreferencestandard, "TB ")) %>% 
+  mutate(Microbiologicreferencestandard = str_replace_all(Microbiologicreferencestandard, c("Negative" = "0", "Positive" = "1"))) %>% 
+  mutate(Microbiologicreferencestandard = as.integer(Microbiologicreferencestandard)) %>% 
+  select(Type, StudyID, participant, everything()) %>% 
+  mutate(across(where(is.character), str_trim))
 
-all_original_data_check$Type %<>% tolower()
-all_original_data_check$StudyID %<>% str_remove_all("-")
-all_original_data_check$participant <- rep("", nrow(all_original_data_check))
-all_original_data_check %<>% select(Type, StudyID, participant, everything())
+clinical_curated_data %<>% 
+  mutate(across(where(is.character), str_trim))
 
 for (i in 1:nrow(all_original_data_check)) {
   if (all_original_data_check$StudyID[i] %in% id_map$StudyID) {
@@ -179,55 +185,29 @@ for (i in 1:nrow(all_original_data_check)) {
   else all_original_data_check$participant[i] <- NA
 }
 
-all_original_data_check$Microbiologicreferencestandard %<>% 
-  str_remove_all("TB ") %>% 
-  str_replace_all(c("Negative" = "0", "Positive" = "1"))
-
 all_original_data_check %<>% 
-  drop_na(participant)
-
-colnames(all_original_data_check)[3:ncol(all_original_data_check)] <- colnames(clinical_curated_data)
-
-all_original_data_check[is.na(all_original_data_check)] <- ""
-clinical_curated_data[is.na(clinical_curated_data)] <- ""
-
-all_original_data_check$age = as.integer(all_original_data_check$age)
-all_original_data_check$reported_cough_dur = as.integer(all_original_data_check$reported_cough_dur)
-all_original_data_check$heart_rate = as.integer(all_original_data_check$heart_rate)
-all_original_data_check$tb_status = as.integer(all_original_data_check$tb_status)
-
-all_original_data_check$tb_prior_Pul %<>% str_trim("both")
-all_original_data_check$hemoptysis %<>% str_trim("both")
-all_original_data_check$smoke_lweek %<>% str_trim("both")
-all_original_data_check$fever %<>% str_trim("both")
-all_original_data_check$weight_loss %<>% str_trim("both")
-
-clinical_curated_data$tb_prior_Pul %<>% str_trim("both")
-clinical_curated_data$hemoptysis %<>% str_trim("both")
-clinical_curated_data$smoke_lweek %<>% str_trim("both")
-clinical_curated_data$fever %<>% str_trim("both")
-clinical_curated_data$weight_loss %<>% str_trim("both")
-
-all_original_data_check %<>% 
-  str_trim("both") %>% 
-  as_tibble()
-
-clinical_curated_data %<>% 
-  str_trim("both") %>% 
-  as_tibble()
-
-all_original_data_check %<>%
   filter(Type=="train") %>%
   select(-c(Type, StudyID)) %>%
-  arrange(participant) #%>%
-  # all_equal(arrange(clinical_curated_data))
+  arrange(participant)
 
-clinical_curated_data %<>% arrange(participant)
+all_original_data_check %<>%
+  drop_na(participant)
 
-check <- data.frame(check=rep("", times=nrow(all_original_data_check)))
+colnames(all_original_data_check) <- colnames(clinical_curated_data)
+
+all_original_data_check[is.na(all_original_data_check)] <- NA
+clinical_curated_data[is.na(clinical_curated_data)] <- NA
+
+check <- tibble()
 
 for (i in 1:length(all_original_data_check)) {
-  ifelse(all_original_data_check[i,]==clinical_curated_data[i,], check[i] <- TRUE, check[i] <- FALSE)
+  ifelse(test = all_original_data_check[i,]==clinical_curated_data[i,], 
+         yes = check[i] <- TRUE, 
+         no = check[i] <- FALSE)
 }
 
 F %in% check # Evaluates to FALSE, so check is passed
+# All data in curated clinical data exactly matches original clinical data
+
+# Check if only training cough files hae been included in the curated metadata
+

@@ -35,7 +35,7 @@ id_map <- read.csv(synGet(participant.id.mapping.id)$path)
 clinical_curated_data <- read.csv(synGet(clinical.curated.id)$path)
 solicited_curated_metadata <- read.csv(synGet(solicited.meta.curated.id)$path)
 long_curated_metadata <- read.csv(synGet(long.meta.curated.id)$path)
-solicited_curated_files <- synGet(solicited.raw.curated.id)$path
+# solicited_curated_files <- synGet(solicited.raw.curated.id)$path
 # long1_curated_files <- synGet(long1.raw.curated.id)$path
 # long2_curated_files <- synGet(long2.raw.curated.id)$path
 
@@ -246,10 +246,68 @@ for (i in 1:nrow(mismatch)) {
 
 mismatch %<>% select(-`original participant`)
 
-# Check if only training cough files hae been included in the curated metadata
+# Check if only training cough files have been included in the curated metadata
+
+# Combine original metadata, select relevant columns, and extract filename
 all_original_solicited_metadata <- 
-  bind_rows(mad_solicited_metadata, tanz_solicited_metadata) %>% 
-  rename("X" = "...1") %>% 
-  select(colnames(r2d2_solicited_metadata)) %>% 
-  bind_rows(r2d2_solicited_metadata)
+  bind_rows(mad_solicited_metadata, tanz_solicited_metadata, r2d2_solicited_metadata) %>% 
+  select(hyfe_id, url_peak, sound_prediction_score) %>% 
+  # mutate(participant = "") %>% 
+  mutate(url_peak = gsub("^.*\\/.*\\/", "", url_peak, perl = T))
+
+all_original_long_metadata <- 
+  bind_rows(mad_long_metadata, tanz_long_metadata, r2d2_long_metadata) %>% 
+  select(hyfe_id, url_peak, sound_prediction_score) %>% 
+  mutate(url_peak = gsub("^.*\\/.*\\/", "", url_peak, perl = T))
+
+# Store IDs for which metadata files are in curated metadata, assign train/test classification using original HyfeID and id_map, then test for whether "test" class is present
+ids_in_solicited_metadata <- enframe(unique(all_original_solicited_metadata$hyfe_id[which(all_original_solicited_metadata$url_peak %in% solicited_curated_metadata$filename)]))
+
+ids_in_solicited_metadata %<>% 
+  rename(HyfeID = value) %>% 
+  select(-name) %>% 
+  mutate(type = "")
+
+for (i in 1:nrow(ids_in_solicited_metadata)) {
+  if (ids_in_solicited_metadata$HyfeID[i] %in% id_map$StudyID) {
+    ids_in_solicited_metadata$type[i] <- id_map$type[which(id_map$StudyID==ids_in_solicited_metadata$HyfeID[i])]
+  }
+  else ids_in_solicited_metadata$HyfeID[i] <- NA
+}
+
+"test" %in% ids_in_solicited_metadata$type # Evaluates to FALSE, so check is passed
+
+ids_in_long_metadata <- enframe(unique(all_original_long_metadata$hyfe_id[which(all_original_long_metadata$url_peak %in% long_curated_metadata$filename)]))
+
+ids_in_long_metadata %<>% 
+  rename(HyfeID = value) %>% 
+  select(-name) %>% 
+  mutate(type = "")
+
+for (i in 1:nrow(ids_in_long_metadata)) {
+  if (ids_in_long_metadata$HyfeID[i] %in% id_map$StudyID) {
+    ids_in_long_metadata$type[i] <- id_map$type[which(ids_in_long_metadata$HyfeID[i]==id_map$StudyID)]
+  }
+  else ids_in_long_metadata$HyfeID[i] <- NA
+}
+
+"test" %in% ids_in_long_metadata$type # Evaluates to TRUE, so further verification is needed
+
+tmp <- ids_in_long_metadata$HyfeID[which(ids_in_long_metadata$type=="test")]
+
+tmp2 <- vector()
+
+for (i in 1:length(tmp)) {
+  tmp2[i] <- id_map$participant[which(id_map$StudyID==tmp[i])]
+}
+
+tmp3 <- vector()
+
+for (i in 1:length(tmp2)) {
+  ifelse(test = tmp2 %in% long_curated_metadata$participant, 
+         yes = tmp3[i] <- T, 
+         no = tmp3[i] <- F)
+}
+
+T %in% tmp3 # Evaluates to False, so check is passed
 

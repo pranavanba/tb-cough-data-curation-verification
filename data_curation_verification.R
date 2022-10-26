@@ -1,5 +1,5 @@
 library(install.load)
-install_load("synapser", "dplyr", "tidyr", "readxl", "magrittr", "stringr")
+install_load("synapser", "dplyr", "tidyr", "readxl", "magrittr", "stringr", "tibble")
 
 synLogin()
 
@@ -32,12 +32,12 @@ r2d2.long.meta.original.id <- "syn41831765" # csv file
 # Get data ----------------------------------------------------------------
 id_map <- read.csv(synGet(participant.id.mapping.id)$path)
 
-clinical_curated_data <- as_tibble(read.csv(synGet(clinical.curated.id)$path))
+clinical_curated_data <- read.csv(synGet(clinical.curated.id)$path)
 solicited_curated_metadata <- read.csv(synGet(solicited.meta.curated.id)$path)
-# solicited_data <- read.csv(synGet(solicited.raw.curated.id)$path)
 long_curated_metadata <- read.csv(synGet(long.meta.curated.id)$path)
-# long1_data <- read.csv(synGet(long1.raw.curated.id)$path)
-# long2_data <- read.csv(synGet(long2.raw.curated.id)$path)
+solicited_curated_files <- synGet(solicited.raw.curated.id)$path
+# long1_curated_files <- synGet(long1.raw.curated.id)$path
+# long2_curated_files <- synGet(long2.raw.curated.id)$path
 
 mad_data <- read_excel(synGet(mad.raw.original.id)$path, trim_ws = T)
 mad_solicited_metadata <- read_excel(synGet(mad.solicited.meta.original.id)$path, trim_ws = T)
@@ -152,6 +152,8 @@ colnames(mad_data)[which(!(colnames(mad_data) %in% colnames(r2d2_data)))] # "Red
 # Combine all original data into one df
 all_original_data <- bind_rows(mad_data, tanz_data, r2d2_data)
 all_original_data$StudyID[which(all_original_data$Country=="Madagascar")] <- all_original_data$HyfeID[which(all_original_data$Country=="Madagascar")]
+all_original_data %<>% 
+  mutate(StudyID = str_remove_all(StudyID, "-"))
 
 # Compare StudyID and HyfeID values in the original data
 all_original_data$StudyID[which(!(all_original_data$StudyID[1:557] %in% all_original_data$HyfeID[1:557]))]
@@ -176,7 +178,8 @@ all_original_data_check <-
   mutate(across(where(is.character), str_trim))
 
 clinical_curated_data %<>% 
-  mutate(across(where(is.character), str_trim))
+  mutate(across(where(is.character), str_trim)) %>% 
+  arrange(participant)
 
 for (i in 1:nrow(all_original_data_check)) {
   if (all_original_data_check$StudyID[i] %in% id_map$StudyID) {
@@ -195,19 +198,51 @@ all_original_data_check %<>%
 
 colnames(all_original_data_check) <- colnames(clinical_curated_data)
 
-all_original_data_check[is.na(all_original_data_check)] <- NA
-clinical_curated_data[is.na(clinical_curated_data)] <- NA
+all_original_data_check$tb_prior %<>% str_replace_all(c("Unchecked" = "No", "Checked" = "Yes"))
+all_original_data_check$tb_prior[is.na(all_original_data_check$tb_prior)] <- "No"
+all_original_data_check$tb_prior_Pul %<>% str_replace_all(c("Unchecked" = "No", "Checked" = "Yes"))
+all_original_data_check$tb_prior_Extrapul %<>% str_replace_all(c("Unchecked" = "No", "Checked" = "Yes"))
+all_original_data_check$tb_prior_Unknown %<>% str_replace_all(c("Unchecked" = "No", "Checked" = "Yes"))
+all_original_data_check$tb_prior_Unknown[is.na(all_original_data_check$tb_prior_Unknown)] <- "No"
 
-check <- tibble()
+# all_original_data_check[is.na(all_original_data_check)] <- ""
+# clinical_curated_data[is.na(clinical_curated_data)] <- ""
 
-for (i in 1:length(all_original_data_check)) {
-  ifelse(test = all_original_data_check[i,]==clinical_curated_data[i,], 
-         yes = check[i] <- TRUE, 
-         no = check[i] <- FALSE)
+check <- data.frame("1" = rep("", times = nrow(all_original_data_check)))
+
+for (j in 1:nrow(all_original_data_check)) {
+  for (k in 1:ncol(all_original_data_check)) {
+    ifelse(test = all_original_data_check[j,k]==clinical_curated_data[j,k], 
+           yes = check[j,k] <- T, 
+           no = check[j,k] <- F)
+  }
 }
 
-F %in% check # Evaluates to FALSE, so check is passed
-# All data in curated clinical data exactly matches original clinical data
+check2 <- data.frame("1" = rep("", times = length(check)))
 
-# Check if only training cough files hae been included in the curated metadata
+for (i in 1:length(check)) {
+  ifelse(test = F %in% check[,i], 
+         yes = check2[i,] <- F, 
+         no = check2[i,] <- T)
+}
+
+F %in% check2[,1] # Evaluates to TRUE, so need to check which data have discrepancies
+
+which(check[7]==F)
+
+mismatch <- tibble("curated column" = colnames(clinical_curated_data[7]), 
+                   "curated participant" = clinical_curated_data[which(check[7]==F),1], 
+                   "curated value" = clinical_curated_data[which(check[7]==F),7], 
+                   "original column" = colnames(all_original_data[14]), 
+                   "original participant" = deframe(all_original_data_check[which(check[7]==F),1]), 
+                   "studyID" = "", 
+                   "original value" = "")
+
+for (i in 1:nrow(mismatch)) {
+  pID <- mismatch$`curated participant`[i]
+  mismatch$studyID[i] <- id_map$StudyID[which(id_map$participant==pID)]
+  mismatch$`original value`[i] <- all_original_data$PriorTB[which(all_original_data$StudyID==mismatch$studyID[i])]
+}
+
+mismatch %<>% select(-`original participant`)
 

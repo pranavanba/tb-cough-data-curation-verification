@@ -53,7 +53,6 @@ r2d2_long_metadata <- read.csv(synGet(r2d2.long.meta.original.id)$path)
 
 
 # Verification ------------------------------------------------------------
-# r2d2_data <- bind_rows(r2d2_train_data, r2d2_test_data)
 
 # Split raw data by train and test classification
 mad_train_data <- 
@@ -130,13 +129,12 @@ F %in% id_map$check # Evaluates to FALSE, so the check is passed
 identical(clinical_curated_data$participant, id_map$participant[which(id_map$type=="train")]) # Evaluates to TRUE, so the check is passed
 F %in% (unique(solicited_curated_metadata$participant) %in% id_map$participant[which(id_map$type=="train")]) # Evaluates to FALSE, so check is passed
 T %in% (unique(solicited_curated_metadata$participant) %in% id_map$participant[which(id_map$type=="test")]) # Evaluates to FALSE, so check is passed
-
 F %in% (unique(long_curated_metadata$participant) %in% id_map$participant[which(id_map$type=="train")]) # Evaluates to FALSE, so check is passed
 T %in% (unique(long_curated_metadata$participant) %in% id_map$participant[which(id_map$type=="test")]) # Evaluates to FALSE, so check is passed
 
-# Verify that curated clinical data variable values for each participant ID match original data variable values for corresponding studyID in original data
+# Verify that curated clinical data column values for each participant match original data column values for corresponding studyID in original data
 
-# First check that original data variable names are the same between cohorts
+# First, check that original data variable names are the same between cohorts
 identical(colnames(mad_data), colnames(tanz_data)) # TRUE
 identical(colnames(mad_data), colnames(r2d2_data)) # FALSE
 
@@ -156,9 +154,11 @@ all_original_data <- bind_rows(mad_data, tanz_data, r2d2_data)
 all_original_data$StudyID[which(all_original_data$Country=="Madagascar")] <- all_original_data$HyfeID[which(all_original_data$Country=="Madagascar")]
 
 # Compare StudyID and HyfeID values in the original data
-which(!(all_original_data$StudyID[1:557] %in% all_original_data$HyfeID[1:557])) # Better to use StudyID than HyfeID since HyfeID has errors while StudyID does not
+all_original_data$StudyID[which(!(all_original_data$StudyID[1:557] %in% all_original_data$HyfeID[1:557]))]
+all_original_data$HyfeID[which(!(all_original_data$StudyID[1:557] %in% all_original_data$HyfeID[1:557]))]
+# Better to use StudyID instead of HyfeID since HyfeID has errors while StudyID does not
 
-# Keep columns present in original and curated data, then rename column names to match across original and curated data
+# Keep identical columns present in both original and curated data, then rename column names to match across original and curated data
 all_original_data_check <- 
   all_original_data %>% 
   select(-HyfeID) %>% 
